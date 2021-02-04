@@ -76,6 +76,22 @@ const server = new Hapi.Server(serverOptions);
     handler: colorQueryHandler
   });
 
+  // Renvoie la question courante
+  server.route({
+    method: 'GET',
+    path: '/questions',
+    handler: getCurrentQuestionHandler
+  });
+
+  // Comptabilise un vote
+  server.route({
+    method: 'POST',
+    path: '/questions',
+    handler: userVoteHandler
+  });
+
+
+
   // Start the server.
   await server.start();
   console.log(STRINGS.serverStarted, server.info.uri);
@@ -147,4 +163,15 @@ function colorQueryHandler (req) {
   const currentColor = color(channelColors[channelId] || initialColor).hex();
   verboseLog(STRINGS.sendColor, currentColor, opaqueUserId);
   return currentColor;
+}
+
+///////////////////////////////////////////////
+
+function getCurrentQuestionHandler (req) {
+  verboseLog('Current question asked : ', req)
+  return 'BatKwak le BG'
+}
+
+function userVoteHandler (req) {
+  verboseLog(req)
 }

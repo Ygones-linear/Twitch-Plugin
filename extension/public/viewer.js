@@ -33,7 +33,6 @@ twitch.onAuthorized(function (auth) {
   // save our credentials
   token = auth.token;
   tuid = auth.userId;
-
   // enable the button
   $('#cycle').removeAttr('disabled');
 
@@ -59,6 +58,21 @@ $(function () {
   $('#cycle').click(function () {
   if(!token) { return twitch.rig.log('Not authorized'); }
     twitch.rig.log('Requesting a color cycle');
+    twitch.rig.log('USER ID : ', tuid)
     $.ajax(requests.set);
   });
 });
+
+$(function () {
+  $('#getQuestions').click(function () {
+    if(!token) { return twitch.rig.log('Not authorized'); }
+    twitch.rig.log('REQUESTING QUESTIONS')
+    $.ajax({
+      url: location.protocol + '//localhost:8081/question',
+      type: 'GET',
+      success: function (r) {
+        twitch.rig.log('Result : ', r)
+      }
+    })
+  })
+})
