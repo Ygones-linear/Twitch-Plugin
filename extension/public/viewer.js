@@ -3,28 +3,6 @@ let tuid = '';
 
 const twitch = window.Twitch.ext;
 
-// create the request options for our Twitch API calls
-const requests = {
-  set: createRequest('POST', 'cycle'),
-  get: createRequest('GET', 'query')
-};
-
-function createRequest (type, method) {
-  return {
-    type: type,
-    url: location.protocol + '//localhost:8081/color/' + method,
-    success: updateBlock,
-    error: logError
-  };
-}
-
-function setAuth (token) {
-  Object.keys(requests).forEach((req) => {
-    twitch.rig.log('Setting auth headers');
-    requests[req].headers = { 'Authorization': 'Bearer ' + token };
-  });
-}
-
 twitch.onContext(function (context) {
   twitch.rig.log(context);
 });
@@ -33,17 +11,8 @@ twitch.onAuthorized(function (auth) {
   // save our credentials
   token = auth.token;
   tuid = auth.userId;
-  // enable the button
-  $('#cycle').removeAttr('disabled');
-
-  setAuth(token);
   $.ajax(requests.get);
 });
-
-function updateBlock (hex) {
-  twitch.rig.log('Updating block color');
-  $('#color').css('background-color', hex);
-}
 
 function logError(_, error, status) {
   twitch.rig.log('EBS request returned '+status+' ('+error+')');
@@ -53,26 +22,79 @@ function logSuccess(hex, status) {
   twitch.rig.log('EBS request returned '+hex+' ('+status+')');
 }
 
-$(function () {
-  // when we click the cycle button
-  $('#cycle').click(function () {
-  if(!token) { return twitch.rig.log('Not authorized'); }
-    twitch.rig.log('Requesting a color cycle');
-    twitch.rig.log('USER ID : ', tuid)
-    $.ajax(requests.set);
-  });
-});
-
-$(function () {
+/* $(function () {
   $('#getQuestions').click(function () {
-    if(!token) { return twitch.rig.log('Not authorized'); }
-    twitch.rig.log('REQUESTING QUESTIONS')
-    $.ajax({
-      url: location.protocol + '//localhost:8081/question',
-      type: 'GET',
-      success: function (r) {
-        twitch.rig.log('Result : ', r)
-      }
-    })
+    twitch.rig.log('clicked !')
   })
-})
+}) */
+
+let socket = null
+
+function setupWS () {
+  socket = new WebSocket('ws://localhost:8081', 'echo-protocol')
+  socket.onerror = function () {
+    twitch.rig.log('Erreur WS')
+  }
+
+  socket.onopen = function () {
+    twitch.rig.log('Connexion OK')
+  }
+
+  socket.onclose = function () {
+    twitch.rig.log('Connexion fermée')
+  }
+
+  socket.onmessage = function (e) {
+    if (e.data) {
+      const data = JSON.parse(e.data)
+      twitch.rig.log("Received new " + e.data.type)
+      switch(data.type) {
+        case 'newQuestion':
+          setupNewQuestion(data.question)
+          break
+        case 'voteConfirmation':
+          voteConfirmation(data.vote)
+          break
+        default:
+          twitch.rig.log(e.data)
+      }
+    }
+  }
+}
+
+function vote (resId) {
+  const data = {
+    type: 'vote',
+    vote: resId
+  }
+  socket.send(JSON.stringify(data))
+}
+
+function voteConfirmation (vote) {
+  twitch.rig.log(vote, ' vote accepted')
+}
+
+function logSomething () {
+  twitch.rig.log('Envoi...')
+  socket.send('Salut')
+}
+
+function getProject () {
+  twitch.rig.log('project request')
+  const request = {
+    type: 'project',
+    action: 'GET'
+  }
+  socket.send(JSON.stringify(request))
+}
+
+function setupNewQuestion (question) {
+  twitch.rig.log('Received new question !')
+  setView('question-template', question)
+}
+
+function setView (viewId, data) {
+  const template = document.getElementById(viewId).innerHTML
+  const rendered = Mustache.render(template, data)
+  document.getElementById('dynamic-view').innerHTML = rendered
+}

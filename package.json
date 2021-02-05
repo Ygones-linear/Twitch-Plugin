@@ -10,6 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "standard-version": "^9.0.0"
+    "axios": "^0.21.1",
+    "http": "0.0.1-security",
+    "mustache": "^4.1.0",
+    "standard-version": "^9.0.0",
+    "websocket": "^1.0.33"
   }
 }

@@ -2,9 +2,17 @@ const fs = require('fs');
 const Hapi = require('hapi');
 const path = require('path');
 const Boom = require('boom');
-const color = require('color');
 const ext = require('commander');
 const jsonwebtoken = require('jsonwebtoken');
+const http = require('http');
+const axios = require ('axios');
+
+
+// WEBSOCKET
+
+const WebSocketServer = require('websocket').server;
+const { log } = require('console');
+
 // const request = require('request');
 
 // The developer rig uses self-signed certificates.  Node doesn't accept them
@@ -16,10 +24,7 @@ const verboseLogging = true;
 const verboseLog = verboseLogging ? console.log.bind(console) : () => { };
 
 // Service state variables
-const initialColor = color('#6441A4');      // set initial color; bleedPurple
 const bearerPrefix = 'Bearer ';             // HTTP authorization headers have this prefix
-const colorWheelRotation = 30;
-const channelColors = {};
 
 const STRINGS = {
   secretEnv: usingValue('secret'),
@@ -59,119 +64,164 @@ if (fs.existsSync(serverPathRoot + '.crt') && fs.existsSync(serverPathRoot + '.k
     key: fs.readFileSync(serverPathRoot + '.key')
   };
 }
-const server = new Hapi.Server(serverOptions);
+// const server = new Hapi.Server(serverOptions);
 
-(async () => {
-  // Handle a viewer request to cycle the color.
-  server.route({
-    method: 'POST',
-    path: '/color/cycle',
-    handler: colorCycleHandler
+const server = http.createServer(function (request, response) {
+  console.log((new Date()) + ' Received request for ' + request.url);
+  response.writeHead(404);
+  response.end();
+})
+
+server.listen(8081, function() {
+  console.log((new Date()) + ' Server is listening on port 8081');
+});
+
+wsServer = new WebSocketServer({
+  httpServer: server,
+  // You should not use autoAcceptConnections for production
+  // applications, as it defeats all standard cross-origin protection
+  // facilities built into the protocol and the browser.  You should
+  // *always* verify the connection's origin and decide whether or not
+  // to accept it.
+  autoAcceptConnections: false
+});
+
+function originIsAllowed(origin) {
+  // put logic here to detect whether the specified origin is allowed.
+  console.log('ORIGIN CHECK : ', origin)
+  return true;
+}
+
+const connexions = []
+
+function broadcast (message) {
+  console.log('Broadcasting...')
+  console.log(connexions.length + ' active connections ...')
+  if (connexions.length > 0) {
+    connexions.forEach(c => {
+      c.send(message)
+    })
+  }
+}
+
+wsServer.on('request', function(request) {
+  if (!originIsAllowed(request.origin)) {
+    // Make sure we only accept requests from an allowed origin
+    request.reject()
+    console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.')
+    return;
+  }
+  var connection = request.accept('echo-protocol', request.origin)
+  console.log((new Date()) + ' Connection accepted.')
+  if (connexions.indexOf(connection) === -1) {
+    connexions.push(connection)
+  }
+  connection.on('message', function(message) {
+      if (message.type === 'utf8') {
+          console.log('Received Message: ' + message.utf8Data)
+          const data = JSON.parse(message.utf8Data)
+          if (data.type === 'vote') {
+            handleUserVote(connection, data)
+          }
+          switch(data.type) {
+            case 'vote':
+              handleUserVote(connection, data)
+              break
+            case 'project':
+              if (data.action === 'GET') {
+                console.log('ICI')
+                getProject()
+              }
+              break
+          }
+          // connection.send(message.utf8Data)
+      }
+      else if (message.type === 'binary') {
+          console.log('WRONG PAYLOAD TYPE')
+          // connection.sendBytes(message.binaryData)
+      }
   });
-
-  // Handle a new viewer requesting the color.
-  server.route({
-    method: 'GET',
-    path: '/color/query',
-    handler: colorQueryHandler
+  connection.on('close', function(reasonCode, description) {
+      console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.')
   });
-
-  // Renvoie la question courante
-  server.route({
-    method: 'GET',
-    path: '/questions',
-    handler: getCurrentQuestionHandler
-  });
-
-  // Comptabilise un vote
-  server.route({
-    method: 'POST',
-    path: '/questions',
-    handler: userVoteHandler
-  });
-
-
-
-  // Start the server.
-  await server.start();
-  console.log(STRINGS.serverStarted, server.info.uri);
-})();
+});
 
 function usingValue (name) {
-  return `Using environment variable for ${name}`;
+  return `Using environment variable for ${name}`
 }
 
 function missingValue (name, variable) {
-  const option = name.charAt(0);
-  return `Extension ${name} required.\nUse argument "-${option} <${name}>" or environment variable "${variable}".`;
+  const option = name.charAt(0)
+  return `Extension ${name} required.\nUse argument "-${option} <${name}>" or environment variable "${variable}".`
 }
 
 // Get options from the command line or the environment.
 function getOption (optionName, environmentName) {
   const option = (() => {
     if (ext[optionName]) {
-      return ext[optionName];
+      return ext[optionName]
     } else if (process.env[environmentName]) {
-      console.log(STRINGS[optionName + 'Env']);
-      return process.env[environmentName];
+      console.log(STRINGS[optionName + 'Env'])
+      return process.env[environmentName]
     }
-    console.log(STRINGS[optionName + 'Missing']);
-    process.exit(1);
+    console.log(STRINGS[optionName + 'Missing'])
+    process.exit(1)
   })();
-  console.log(`Using "${option}" for ${optionName}`);
-  return option;
+  console.log(`Using "${option}" for ${optionName}`)
+  return option
 }
 
 // Verify the header and the enclosed JWT.
 function verifyAndDecode (header) {
   if (header.startsWith(bearerPrefix)) {
     try {
-      const token = header.substring(bearerPrefix.length);
-      return jsonwebtoken.verify(token, secret, { algorithms: ['HS256'] });
+      const token = header.substring(bearerPrefix.length)
+      return jsonwebtoken.verify(token, secret, { algorithms: ['HS256'] })
     }
     catch (ex) {
-      throw Boom.unauthorized(STRINGS.invalidJwt);
+      throw Boom.unauthorized(STRINGS.invalidJwt)
     }
   }
-  throw Boom.unauthorized(STRINGS.invalidAuthHeader);
-}
-
-function colorCycleHandler (req) {
-  // Verify all requests.
-  const payload = verifyAndDecode(req.headers.authorization);
-  const { channel_id: channelId, opaque_user_id: opaqueUserId } = payload;
-
-  // Store the color for the channel.
-  let currentColor = channelColors[channelId] || initialColor;
-
-  // Rotate the color as if on a color wheel.
-  verboseLog(STRINGS.cyclingColor, channelId, opaqueUserId);
-  currentColor = color(currentColor).rotate(colorWheelRotation).hex();
-
-  // Save the new color for the channel.
-  channelColors[channelId] = currentColor;
-
-  return currentColor;
-}
-
-function colorQueryHandler (req) {
-  // Verify all requests.
-  const payload = verifyAndDecode(req.headers.authorization);
-
-  // Get the color for the channel from the payload and return it.
-  const { channel_id: channelId, opaque_user_id: opaqueUserId } = payload;
-  const currentColor = color(channelColors[channelId] || initialColor).hex();
-  verboseLog(STRINGS.sendColor, currentColor, opaqueUserId);
-  return currentColor;
+  throw Boom.unauthorized(STRINGS.invalidAuthHeader)
 }
 
 ///////////////////////////////////////////////
 
+//
+
 function getCurrentQuestionHandler (req) {
-  verboseLog('Current question asked : ', req)
+  const payload = verifyAndDecode(req.headers.authorization)
+  verboseLog('Current question asked : ', payload)
   return 'BatKwak le BG'
 }
 
-function userVoteHandler (req) {
-  verboseLog(req)
+function handleUserVote (connection, vote) {
+  console.log('vote : ', vote)
+  const response = {
+    type: 'voteConfirmation',
+    vote: vote
+  }
+  connection.send(JSON.stringify(response))
+}
+
+function getProject () {
+  console.log('GETTING PROJECTS')
+  axios.get('https://api.goneslive.fr/projects').then(r => {
+    console.log('SUCCESS : ', r.data[0].questions)
+    setQuestion(r.data[0].questions[0])
+  }).catch(e => {
+    console.log('ERROR : ', e)
+  })
+}
+
+let currentQuestion = null
+function setQuestion (question) {
+  if (!!question) {
+    currentQuestion = question
+    const data = {
+      type: 'newQuestion',
+      question: question
+    }
+    broadcast(JSON.stringify(data))
+  }
 }
