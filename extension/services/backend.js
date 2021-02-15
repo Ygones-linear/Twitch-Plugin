@@ -120,16 +120,12 @@ wsServer.on('request', function(request) {
       if (message.type === 'utf8') {
           console.log('Received Message: ' + message.utf8Data)
           const data = JSON.parse(message.utf8Data)
-          if (data.type === 'vote') {
-            handleUserVote(connection, data)
-          }
           switch(data.type) {
             case 'vote':
               handleUserVote(connection, data)
               break
             case 'project':
               if (data.action === 'GET') {
-                console.log('ICI')
                 getProject()
               }
               break
@@ -185,6 +181,18 @@ function verifyAndDecode (header) {
   throw Boom.unauthorized(STRINGS.invalidAuthHeader)
 }
 
+function verifyAndDecodeToken (token) {
+  if (token) {
+    try {
+      return jsonwebtoken.verify(token, secret, { algorithms: ['HS256'] })
+    }
+    catch (ex) {
+      throw Boom.unauthorized(STRINGS.invalidJwt)
+    }
+  }
+  throw Boom.unauthorized(STRINGS.invalidAuthHeader)
+}
+
 ///////////////////////////////////////////////
 
 //
@@ -197,11 +205,31 @@ function getCurrentQuestionHandler (req) {
 
 function handleUserVote (connection, vote) {
   console.log('vote : ', vote)
-  const response = {
-    type: 'voteConfirmation',
-    vote: vote
+  if (vote.token) {
+    const allowed = verifyAndDecodeToken(vote.token)
+    if (allowed) { // token vérifié
+      // @todo: vérifier que l'user ne vote pas 2 fois
+      const response = {
+        type: 'voteConfirmation',
+        vote: vote
+      }
+      connection.send(JSON.stringify(response))
+    } else { // le token n'a pas pu être vérifié
+      const response = {
+        type: 'voteRejected',
+        message: 'Token verification failed...'
+      }
+      connection.send(JSON.stringify(response))
+      return
+    }
+  } else { // la requête ne contient pas de token
+    const response = {
+      type: 'voteRejected',
+      message: 'Missing token...'
+    }
+    connection.send(JSON.stringify(response))
+      return
   }
-  connection.send(JSON.stringify(response))
 }
 
 function getProject () {

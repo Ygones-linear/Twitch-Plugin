@@ -10,9 +10,12 @@
     <script src="jquery-3.3.1.min.js"></script>
     <script src="viewer.js" type="text/javascript"></script>
     <div id="dynamic-view">
+        <div class="default-view">
+            <p>En attente du prochain vote...</p>
+        </div>
     </div>
-    <button id="openWS" onclick="vote(3)">SEND MESSAGE</button>
-    <button id="openWS" onclick="getProject()">Get Project</button>
+    <div id="timer-bar"></div>
+    <button onclick="getProject()">Get Project</button>
     <script>
         setupWS();
     </script>
@@ -22,10 +25,33 @@
             <h2>{{ title }}</h2>
             <form>
                 {{ #responses }}
-                <input type="radio" name="response" value="{{ scene }}" id="{{ scene }}">
-                <label for="{{ scene }}">{{ response }}</label>
+                <div class="resp">
+                    <input type="radio" name="response" value="{{ scene }}" id="{{ scene }}">
+                    <label for="{{ scene }}">{{ response }}</label>
+                </div>
                 {{ /responses }}
             </form>
+            <button onclick="vote()">Envoyer</button>
+        </div>
+    </script>
+    <script id="loading-template" type="x-tmpl-mustache">
+        <div class="loader">
+            <p>Chargement...</p>
+        </div>
+    </script>
+    <script id="vote-success-template" type="x-tmpl-mustache">
+        <div class="vote-success">
+            <p>Votre vote a bien été pris en compte !</p>
+        </div>
+    </script>
+    <script id="default-view-template" type="x-tmpl-mustache">
+        <div class="default-view">
+            <p>En attente du prochain vote...</p>
+        </div>
+    </script>
+    <script id="error-view-template" type="x-tmpl-mustache">
+        <div class="error-view">
+            <p>Une erreur s'est produite ¯\_(ツ)_/¯</p>
         </div>
     </script>
 </body>

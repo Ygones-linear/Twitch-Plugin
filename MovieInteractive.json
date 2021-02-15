@@ -25,28 +25,6 @@
       "orientation": "Portrait",
       "type": "component",
       "viewerType": "Logged-In Viewer"
-    },
-    {
-      "channelId": "593275186",
-      "configurationAnchor": "component",
-      "displayChannelName": "goneslive",
-      "features": {
-        "isBitsEnabled": false,
-        "isChatEnabled": false,
-        "isSubscriptionStatusAvailable": false
-      },
-      "frameSize": {
-        "width": 1024,
-        "height": 576
-      },
-      "id": "2",
-      "isPopout": false,
-      "label": "",
-      "linked": false,
-      "linkedUserId": "",
-      "orientation": "Portrait",
-      "type": "component",
-      "viewerType": "Broadcaster"
     }
   ],
   "manifest": {
